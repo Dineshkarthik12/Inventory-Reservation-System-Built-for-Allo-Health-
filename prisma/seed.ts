@@ -75,6 +75,20 @@ async function main() {
       price: 20000.0,
     },
   });
+  const p8 = await prisma.product.create({
+    data: {
+      name: 'Digital Stethoscope',
+      description: 'Advanced digital stethoscope for clinical use',
+      price: 250.0,
+    },
+  });
+  const p9 = await prisma.product.create({
+    data: {
+      name: 'Ultrasound Machine',
+      description: 'Portable ultrasound machine',
+      price: 5000.0,
+    },
+  });
 
   // 4. Create Stock
   await prisma.stock.createMany({
@@ -96,6 +110,10 @@ async function main() {
       { productId: p6.id, warehouseId: w2.id, totalQuantity: 35, reservedQuantity: 0 },
       { productId: p7.id, warehouseId: w1.id, totalQuantity: 40, reservedQuantity: 0 },
       { productId: p7.id, warehouseId: w2.id, totalQuantity: 45, reservedQuantity: 0 },
+      { productId: p8.id, warehouseId: w1.id, totalQuantity: 50, reservedQuantity: 0 },
+      { productId: p8.id, warehouseId: w2.id, totalQuantity: 60, reservedQuantity: 0 },
+      { productId: p9.id, warehouseId: w1.id, totalQuantity: 5, reservedQuantity: 0 },
+      { productId: p9.id, warehouseId: w2.id, totalQuantity: 10, reservedQuantity: 0 },
     ],
   });
 
