@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Allo Health - Inventory Reservation System
 
-## Getting Started
+This is a Next.js application built for Allo Health's inventory and order-fulfillment platform. It elegantly solves the race condition of concurrent checkouts by temporarily reserving stock for a short window, ensuring zero overselling and maintaining an optimal user experience.
 
-First, run the development server:
+## Stack
+- **Framework:** Next.js (App Router)
+- **Language:** TypeScript
+- **Database:** PostgreSQL (hosted on Supabase)
+- **ORM:** Prisma
+- **Caching & Locks:** Redis (via Upstash)
+- **Validation:** Zod
+- **Styling:** Tailwind CSS + shadcn/ui
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## How to Run Locally
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Install Dependencies:**
+   ```bash
+   npm install
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. **Environment Variables:**
+   Create a `.env` file and fill in your secrets.
+   ```bash
+   cp .env.example .env
+   ```
+   *Note: You will need a hosted PostgreSQL URL (Supabase/Neon works great) and an Upstash Redis URL/Token.*
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. **Database Setup & Seeding:**
+   Push the Prisma schema to your database and run the seed script to populate initial warehouses and products:
+   ```bash
+   npx prisma db push
+   npx tsx prisma/seed.ts
+   ```
 
-## Learn More
+4. **Run the Development Server:**
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-To learn more about Next.js, take a look at the following resources:
+## The Expiry Mechanism in Production
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+To ensure that abandoned reservations don't hold up stock forever, we use a hybrid approach:
+1. **Vercel Cron Job:** 
+   A Vercel cron job is configured via `vercel.json` to hit the `/api/cron/release-expired` endpoint every 1 minute.
+2. **Concurrency Safety:** 
+   The cron job loops through all `PENDING` reservations where `expiresAt` is in the past. To prevent race conditions (e.g. a user confirming a payment at the exact millisecond the cron fires), the cron job attempts to acquire the **same Redis lock** (`lock:reservation:{id}`) that the checkout confirmation API uses. 
+3. **Atomic Rollback:** 
+   Once the lock is acquired, it safely sets the reservation status to `RELEASED` and increments the available inventory back via a Prisma transaction. 
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Idempotency
+To prevent double-charging or duplicate reservations upon network retries:
+- The client generates a unique `Idempotency-Key` (UUID) for critical endpoints (`POST /api/reservations` and `POST /api/reservations/:id/confirm`).
+- The server checks Upstash Redis for the key `idempotency:{key}`. 
+- If the key exists, the server immediately skips execution and returns the cached HTTP response and status code.
+- If it doesn't exist, the server executes the logic, caches the resulting body and status code in Redis for 24 hours, and then returns the response.
 
-## Deploy on Vercel
+## Trade-offs & Future Improvements (If I had more time)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Optimistic UI vs Polling:** 
+   Currently, the product listing page polls `/api/products` every 5 seconds to keep stock levels somewhat live. If I had more time, I would implement **Server-Sent Events (SSE)** or **WebSockets** for true real-time stock decrements without hammering the database.
+2. **Database Level Constraints vs Application Locks:** 
+   I used Redis distributed locks to serialize add-to-cart requests for a specific SKU. While effective, an alternative (and potentially more robust) approach under massive scale is pure database-level concurrency using Postgres row-level locks (`SELECT ... FOR UPDATE`) or raw SQL decrement queries with `WHERE available_quantity >= requested_quantity`.
+3. **Queue-based Background Workers:**
+   Instead of a Cron job sweeping the database every 60 seconds (which scales poorly if there are millions of reservations), I would use a message broker like AWS SQS or Upstash QStash. When a reservation is created, we would schedule a delayed message for exactly 10 minutes later. A worker would consume that message and release the specific reservation if it's still pending.
