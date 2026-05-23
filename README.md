@@ -19,8 +19,13 @@ This is a Next.js application built for Allo Health's inventory and order-fulfil
    ```
 
 2. **Environment Variables:**
-   Create a `.env` file and fill in your secrets.
-   *Note: You will need a hosted PostgreSQL URL (Supabase/Neon works great) and an Upstash Redis URL/Token.*
+   Create a `.env` file in the root directory and add your required secrets:
+   ```env
+   DATABASE_URL=" "
+   UPSTASH_REDIS_REST_URL=" "
+   UPSTASH_REDIS_REST_TOKEN=" "
+   CRON_SECRET=" "
+   ```
 
 3. **Database Setup & Seeding:**
    Push the Prisma schema to your database and run the seed script to populate initial warehouses and products:
@@ -39,7 +44,7 @@ This is a Next.js application built for Allo Health's inventory and order-fulfil
 
 To ensure that abandoned reservations don't hold up stock forever, we use a hybrid approach:
 1. **Vercel Cron Job:** 
-   A Vercel cron job is configured via `vercel.json` to hit the `/api/cron/release-expired` endpoint every 1 minute.
+   A Vercel cron job is configured via `vercel.json` to hit the `/api/cron/release-expired` endpoint once per day (every 24 hours).
 2. **Concurrency Safety:** 
    The cron job loops through all `PENDING` reservations where `expiresAt` is in the past. To prevent race conditions (e.g. a user confirming a payment at the exact millisecond the cron fires), the cron job attempts to acquire the **same Redis lock** (`lock:reservation:{id}`) that the checkout confirmation API uses. 
 3. **Atomic Rollback:** 
@@ -59,4 +64,4 @@ To prevent double-charging or duplicate reservations upon network retries:
 2. **Database Level Constraints vs Application Locks:** 
    I used Redis distributed locks to serialize add-to-cart requests for a specific SKU. While effective, an alternative (and potentially more robust) approach under massive scale is pure database-level concurrency using Postgres row-level locks (`SELECT ... FOR UPDATE`) or raw SQL decrement queries with `WHERE available_quantity >= requested_quantity`.
 3. **Queue-based Background Workers:**
-   Instead of a Cron job sweeping the database every 60 seconds (which scales poorly if there are millions of reservations), I would use a message broker like AWS SQS or Upstash QStash. When a reservation is created, we would schedule a delayed message for exactly 10 minutes later. A worker would consume that message and release the specific reservation if it's still pending.
+   Instead of a Cron job sweeping the database periodically (which scales poorly if there are millions of reservations), I would use a message broker like AWS SQS or Upstash QStash. When a reservation is created, we would schedule a delayed message for exactly 10 minutes later. A worker would consume that message and release the specific reservation if it's still pending.
