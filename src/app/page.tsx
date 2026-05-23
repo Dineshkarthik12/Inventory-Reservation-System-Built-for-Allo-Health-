@@ -104,7 +104,7 @@ export default function ProductListingPage() {
               <CardDescription className="text-black/60 dark:text-white/60">{p.description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="text-3xl font-black">${p.price.toFixed(2)}</div>
+              <div className="text-3xl font-black">₹{(p.price * 100).toFixed(2)}</div>
               
               <div className="space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-500">Availability</h4>

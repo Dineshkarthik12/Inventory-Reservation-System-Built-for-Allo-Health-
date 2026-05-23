@@ -149,13 +149,13 @@ export default function CheckoutPage() {
               <p className="text-sm text-neutral-400 mt-1">Qty: {reservation.quantity}</p>
             </div>
             <div className="text-2xl font-black">
-              ${(reservation.product.price * reservation.quantity).toFixed(2)}
+              ₹{(reservation.product.price * reservation.quantity * 100).toFixed(2)}
             </div>
           </div>
           
           <div className="flex justify-between items-center text-lg font-bold pt-2">
             <span>Total</span>
-            <span>${(reservation.product.price * reservation.quantity).toFixed(2)}</span>
+            <span>₹{(reservation.product.price * reservation.quantity * 100).toFixed(2)}</span>
           </div>
         </CardContent>
         <CardFooter className="grid grid-cols-2 gap-4 p-8 pt-0">
