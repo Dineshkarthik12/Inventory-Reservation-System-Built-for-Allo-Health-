@@ -20,9 +20,6 @@ This is a Next.js application built for Allo Health's inventory and order-fulfil
 
 2. **Environment Variables:**
    Create a `.env` file and fill in your secrets.
-   ```bash
-   cp .env.example .env
-   ```
    *Note: You will need a hosted PostgreSQL URL (Supabase/Neon works great) and an Upstash Redis URL/Token.*
 
 3. **Database Setup & Seeding:**
